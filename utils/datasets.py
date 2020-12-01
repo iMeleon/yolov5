@@ -18,6 +18,7 @@ import torch
 from PIL import Image, ExifTags
 from torch.utils.data import Dataset
 from tqdm import tqdm
+import albumentations as A
 
 from utils.general import xyxy2xywh, xywh2xyxy
 from utils.torch_utils import torch_distributed_zero_first
@@ -344,6 +345,22 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.mosaic = self.augment and not self.rect  # load 4 images at a time into a mosaic (only during training)
         self.mosaic_border = [-img_size // 2, -img_size // 2]
         self.stride = stride
+        self.albuAug =  A.Compose(
+            [
+             A.Blur((3,6), p=0.07),
+             A.CLAHE((1,4),(8,8),p=0.07),
+             A.ChannelShuffle(p=0),
+             A.Equalize(always_apply=False, p=0.07, mode='cv', by_channels=True),
+             A.GaussNoise(always_apply=False, p=0.07, var_limit=(144.739990234375, 266.4499816894531)),
+             A.HueSaturationValue(always_apply=False, p=0.07, hue_shift_limit=(-20, 20), sat_shift_limit=(-30, 30), val_shift_limit=(-20, 20)),
+             A.ISONoise(always_apply=False, p=0.07, intensity=(0.1, 0.5), color_shift=(0.01, 0.05)),
+             A.ImageCompression(always_apply=False, p=0.07, quality_lower=25, quality_upper=66, compression_type=1),
+             A.JpegCompression(always_apply=False, p=0.07, quality_lower=23, quality_upper=45),
+             A.MotionBlur(always_apply=False, p=0.07, blur_limit=(3, 7)),
+             A.MultiplicativeNoise(always_apply=False, p=0.07, multiplier=(0.9, 1.1), per_channel=True, elementwise=True),
+             A.RandomBrightness(always_apply=False, p=0.07, limit=(-0.2, 0.2)),
+             A.RandomBrightnessContrast(always_apply=False, p=0.07, brightness_limit=(-0.2, 0.2), contrast_limit=(-0.2, 0.2), brightness_by_max=True)
+             ])
 
         try:
             f = []  # image files
@@ -492,7 +509,9 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         index = self.indices[index]  # linear, shuffled, or image_weights
 
         hyp = self.hyp
+        
         mosaic = self.mosaic and random.random() < hyp['mosaic']
+        mosaic = False
         if mosaic:
             # Load mosaic
             img, labels = load_mosaic(self, index)
@@ -508,7 +527,6 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         else:
             # Load image
             img, (h0, w0), (h, w) = load_image(self, index)
-
             # Letterbox
             shape = self.batch_shapes[self.batch[index]] if self.rect else self.img_size  # final letterboxed shape
             img, ratio, pad = letterbox(img, shape, auto=False, scaleup=self.augment)
@@ -524,7 +542,15 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 labels[:, 2] = ratio[1] * h * (x[:, 2] - x[:, 4] / 2) + pad[1]  # pad height
                 labels[:, 3] = ratio[0] * w * (x[:, 1] + x[:, 3] / 2) + pad[0]
                 labels[:, 4] = ratio[1] * h * (x[:, 2] + x[:, 4] / 2) + pad[1]
-
+        # category_ids = list(map(int,list(labels[:,0])))
+        # bboxes = list(labels[:,1:]/640)
+        # print(bboxes)
+        # transformed  = self.albuAug(image=img,bboxes=bboxes, category_ids=category_ids)
+        img  = self.albuAug(image=img)['image']
+        # img = transformed['image']
+        # print(transformed['bboxes'])
+        # print(transformed['category_ids'])
+        cv2.imwrite('/content/sample_data/2123.jpg',img)
         if self.augment:
             # Augment imagespace
             if not mosaic:
@@ -541,19 +567,18 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             # Apply cutouts
             # if random.random() < 0.9:
             #     labels = cutout(img, labels)
-
         nL = len(labels)  # number of labels
         if nL:
             labels[:, 1:5] = xyxy2xywh(labels[:, 1:5])  # convert xyxy to xywh
             labels[:, [2, 4]] /= img.shape[0]  # normalized height 0-1
             labels[:, [1, 3]] /= img.shape[1]  # normalized width 0-1
 
-#         if self.augment:
-#             # flip up-down
-#             if random.random() < hyp['flipud']:
-#                 img = np.flipud(img)
-#                 if nL:
-#                     labels[:, 2] = 1 - labels[:, 2]
+        # if self.augment:
+        #     # flip up-down
+        #     if random.random() < hyp['flipud']:
+        #         img = np.flipud(img)
+        #         if nL:
+        #             labels[:, 2] = 1 - labels[:, 2]
 
             # flip left-right
 #             if random.random() < hyp['fliplr']:
@@ -568,7 +593,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         # Convert
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
-
+        
         return torch.from_numpy(img), labels_out, self.img_files[index], shapes
 
     @staticmethod
