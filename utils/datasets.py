@@ -550,7 +550,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         # img = transformed['image']
         # print(transformed['bboxes'])
         # print(transformed['category_ids'])
-        cv2.imwrite('/content/sample_data/2123.jpg',img)
+#         cv2.imwrite('/content/sample_data/2123.jpg',img)
         if self.augment:
             # Augment imagespace
             if not mosaic:
