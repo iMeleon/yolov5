@@ -556,10 +556,10 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                     labels[:, 2] = 1 - labels[:, 2]
 
             # flip left-right
-            if random.random() < hyp['fliplr']:
-                img = np.fliplr(img)
-                if nL:
-                    labels[:, 1] = 1 - labels[:, 1]
+#             if random.random() < hyp['fliplr']:
+#                 img = np.fliplr(img)
+#                 if nL:
+#                     labels[:, 1] = 1 - labels[:, 1]
 
         labels_out = torch.zeros((nL, 6))
         if nL:
