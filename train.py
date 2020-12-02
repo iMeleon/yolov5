@@ -6,6 +6,9 @@ import time
 from pathlib import Path
 from threading import Thread
 from warnings import warn
+import pathlib
+
+    
 
 import math
 import numpy as np
@@ -48,6 +51,7 @@ def train(hyp, opt, device, tb_writer=None, wandb=None):
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.total_batch_size, opt.weights, opt.global_rank
 
     # Directories
+    save_dir =  pathlib.Path(r"/content/gdrive/MyDrive/darknet/bin/darknet/weights")
     wdir = save_dir / 'weights'
     wdir.mkdir(parents=True, exist_ok=True)  # make dir
     last = wdir / 'last.pt'
